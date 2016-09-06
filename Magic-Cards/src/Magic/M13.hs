@@ -17,9 +17,10 @@ import Data.Boolean (notB, true, (&&*), (||*))
 import qualified Data.Foldable as Foldable
 import Data.Label (get)
 import Data.Label.Monadic ((=:), asks)
+import Data.Maybe (isJust)
 import Data.Monoid ((<>), mconcat)
 import qualified Data.Set as Set
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import qualified Data.Text as Text
 import Prelude hiding ((.))
 
@@ -290,6 +291,20 @@ pacifism = mkCard $ do
       , objectModifications = [ RestrictAllowAttacks selfCantAttack
                         , RestrictAllowBlocks  selfCantBlock ]
       }
+
+planarCleansing :: Card
+planarCleansing = mkCard $ do
+     name =: Just "Planar Cleansing"
+     types =: sorceryType
+     play =: Just playObject { manaCost = Just [Nothing, Nothing, Nothing, Just White, Just White, Just White],
+         effect = stackSelf destroyAllPermanents }
+   where
+     destroyAllPermanents :: ObjectRef 'TyStackItem -> PlayerRef -> Magic ()
+     destroyAllPermanents _ _ = do
+        objects <- IdList.toList <$> view (asks (battlefield))
+        let objectRefs = map (\pair -> (Battlefield, fst pair)) $ filter (not . hasTypes landType . get objectPart . snd) objects
+        let destructionEffects = map (\objectRef -> DestroyPermanent objectRef true) objectRefs
+        void $ executeEffects $ map Will destructionEffects
 
 pillarfieldOx :: Card
 pillarfieldOx = mkCard $ do
@@ -668,6 +683,37 @@ furnaceWhelp = mkCard $ do
         }
       }
 
+flamesOfTheFirebrand :: Card
+flamesOfTheFirebrand = mkCard $ do
+  name  =: Just "Flames of the Firebrand"
+  types =: sorceryType
+  play  =: Just playObject
+    { manaCost = Just [Nothing, Nothing, Just Red]
+    , effect = \rSelf you -> do
+        ts <- askTargetsFromUpTo 1 3 you targetCreatureOrPlayer
+        let (trs, _) = evaluateTargetList ts
+        damages <- case length trs of
+          1 -> return [3]
+          3 -> return [1,1,1]
+          2 -> do
+            firstTwo <- askDamage you
+              "Choose the target to deal 2 damage to"
+              (pack $ show $ head trs)
+              (pack $ show $ head $ tail trs)
+            return $ if firstTwo then [2,1] else [1,2]
+        stackTargetSelf rSelf you ts $ \rs stackSelf _ -> do
+          self <- view (asks (objectPart . object stackSelf))
+          void . executeEffects $ zipWith (damageEffect self) damages rs
+    }
+  where
+    damageEffect self dmg t' = case t' of
+        Left r  -> Will $ DamageObject self r dmg False True
+        Right p -> Will $ DamagePlayer self p dmg False True
+    askDamage :: PlayerRef -> Text -> Text -> Text -> Magic Bool
+    askDamage p txt c1 c2 = askQuestion p (AskChoice (Just txt) choices)
+      where
+        choices = [(ChoiceText c1, True), (ChoiceText c2, False)]
+
 moggFlunkies :: Card
 moggFlunkies = mkCard $ do
     name =: Just "Mogg Flunkies"
@@ -724,6 +770,49 @@ thundermawHellkite = mkCard $ do
       let damage r = DamageObject self r 1 False True
       let damageAndTap r = [Will (damage r), Will (TapPermanent r)]
       void . executeEffects $ concatMap damageAndTap (map fst objs)
+
+
+torchFiend :: Card
+torchFiend = mkCard $ do
+    name  =: Just "Torch Fiend"
+    types =: creatureTypes [Devil]
+    pt    =: Just (2, 1)
+    play  =: Just playObject
+      { manaCost = Just [Nothing, Just Red]
+      }
+    activatedAbilities =: [torchFiendAbility]
+  where
+    torchFiendAbility = ActivatedAbility
+      { abilityActivation = torchFiendActivation
+      , abilityType = ActivatedAb
+      , tapCost = NoTapCost
+      }
+    torchFiendActivation = defaultActivation
+      { manaCost = Just [Just Red]
+      , effect = torchFiendEffect
+      }
+    torchFiendEffect :: Contextual (Magic ())
+    torchFiendEffect rSelf@(Some Battlefield, i) you = do
+      ts <- askTarget you $ checkPermanent (hasTypes artifactType) <?> targetPermanent
+      will (Sacrifice (Battlefield, i))
+      mkTargetAbility you ts $ \t ->
+        will $ DestroyPermanent t True
+
+
+trumpetBlast :: Card
+trumpetBlast = mkCard $ do
+    name  =: Just "Trumpet Blast"
+    types =: instantType
+    play  =: Just playObject
+      { manaCost = Just [Nothing, Nothing, Just Red]
+      , effect = stackSelf titanicGrowthEffect
+      }
+  where
+    titanicGrowthEffect _rSelf _you = do
+      let isAttacking = isJust . get attacking
+      objs <- map fst . filter (isAttacking . snd) <$> viewZone Battlefield
+      t <- tick
+      void $ traverse (\(r, i) -> modifyPTUntilEOT (2, 0) (Some r, i) t) objs
 
 
 -- GREEN CARDS
@@ -1076,7 +1165,7 @@ timberpackWolf = mkCard $ do
             you <- view (asks (controller . objectBase rSelf))
             let isMyWolf = isControlledBy you &&* hasName "Timberpack Wolf"
             wolves <- IdList.filter (isMyWolf . get objectPart) <$> view (asks battlefield)
-            let factor = length wolfs - 1 -- subtract this current creature
+            let factor = length wolves - 1 -- subtract this current creature
             return (factor, factor)]
       }
 

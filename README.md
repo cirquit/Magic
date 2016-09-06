@@ -23,45 +23,28 @@ There is also a command-line interface that allows you to play the game. To run 
 
 ## Building with cabal
 
-You need [GHC 7.8](http://www.haskell.org/ghc/download_ghc_7_8_2) or greater and [cabal-install 1.20](http://www.haskell.org/cabal/download.html) or greater to build Magic.
+You need [GHC 7.8](http://www.haskell.org/ghc/download_ghc_7_8_2) or greater and [cabal-install 1.24](http://www.haskell.org/cabal/download.html) or greater to build Magic.
 
-Clone the repository and create Cabal sandboxes for the projects in dependency order:
+Clone the repository and create a Cabal sandbox:
 
 ```
 $ git clone git@github.com:MedeaMelana/Magic.git
-$ cd Magic/Magic
+$ cd Magic
 $ cabal sandbox init
-$ cabal install --dependencies-only
-$ cabal build
-$ cd ../Magic-Cards
-$ cabal sandbox init
-$ cabal sandbox add-source ../Magic
-$ cabal install --dependencies-only
-$ cabal build
-```
-
-If you want to run the web server:
-
-```
-$ cd Magic/Magic-Web-Server
-$ cabal sandbox init
-$ cabal sandbox add-source ../Magic
-$ cabal sandbox add-source ../Magic-Cards
-$ cabal install --dependencies-only
-$ cabal build
-$ dist/build/magic-web-server/magic-web-server
 ```
 
 If you want to run the command-line interface:
 
 ```
-$ cd Magic/Magic-CLI
-$ cabal sandbox init
-$ cabal sandbox add-source ../Magic
-$ cabal sandbox add-source ../Magic-Cards
-$ cabal install --dependencies-only
-$ cabal build
-$ dist/build/magic-cli/magic-cli
+$ cabal new-build Magic-CLI
+$ dist-newstyle/build/Magic-CLI-*/build/magic-cli/magic-cli
+```
+
+If you want to run the web server:
+
+```
+$ cabal new-build Magic-Web-Server
+$ dist-newstyle/build/Magic-Web-Server-*/build/magic-web-server/magic-web-server
 ```
 
 ## Building with stack
@@ -75,20 +58,20 @@ $ cd Magic/Magic && stack build
 $ cd ../../Magic/Magic-Cards && stack build
 ```
 
-If you want to run the web server:
-
-```
-$ cd Magic/Magic-Web-Server
-$ stack build
-$ stack exec magic-web-server
-```
-
 If you want to run the command-line:
 
 ```
 $ cd Magic/Magic-Cards
 $ stack build
 $ stack exec magic-cli
+```
+
+If you want to run the web server:
+
+```
+$ cd Magic/Magic-Web-Server
+$ stack build
+$ stack exec magic-web-server
 ```
 
 **Info for NixOS users**: Please use the `nix-shell` to download the newest `stack` version
